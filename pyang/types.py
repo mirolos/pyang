@@ -3,6 +3,7 @@
 from .error import err_add
 from . import util
 from . import syntax
+from . import leafref_path_parser
 import base64
 from xml.sax.saxutils import quoteattr
 from xml.sax.saxutils import escape
@@ -693,138 +694,37 @@ class BitTypeSpec(TypeSpec):
 
 def validate_path_expr(errors, path):
 
-    # FIXME: rewrite using the new xpath tokenizer
+    def validate_prefix(node_identifier):
+        prefix = node_identifier[0]
+        module = util.prefix_to_module(path.i_module, prefix, path.pos, errors)
+        return module is not None
 
-    # PRE: s matches syntax.path_arg
-    # -type dn [identifier | ('predicate', identifier, up::int(), [identifier])]
-    # Ret: (up::int(),
-    #       dn::dn(),
-    #       derefup::int(),
-    #       derefdn::dn())
-    def parse_keypath(s):
-
-        def parse_dot_dot(s):
-            up = 0
-            i = 0
-            while True:
-                if s[i] == '.' and s[i+1] == '.':
-                    up = up + 1
-                    i = i + 3 # skip the '/'
-                elif s[i] == '/':
-                    i = i + 1 # skip the '/'
-                    if up == 0: # absolute path
-                        up = -1
-                    break
-                elif s[i].isspace():
-                    i = i + 1
-                else:
-                    # s points to an identifier
-                    break
-            return (up, s[i:])
-
-        def skip_space(s):
-            if len(s) == 0:
-                return s
-            i = 0
-            while s[i].isspace():
-                i = i + 1
-            return s[i:]
-
-        def parse_identifier(s):
-            m = syntax.re_keyword_start.match(s)
-            if m is None:
-                raise Abort
-            s = s[m.end():]
-            if m.group(2) is None:
-                # no prefix
-                return (m.group(3), s)
+    def validate_prefixes(down_list):
+        result = True
+        for segment in down_list:
+            if not isinstance(segment, tuple):
+                continue
+            if len(segment) == 4:  # predicate
+                if isinstance(segment[1], tuple):
+                    if not validate_prefix(segment[1]):
+                        result = False
+                if not validate_prefixes(segment[3]):
+                    result = False
             else:
-                prefix = m.group(2)
-                mod = util.prefix_to_module(path.i_module, prefix,
-                                            path.pos, errors)
-                if mod is not None:
-                    return ((m.group(2), m.group(3)), s)
-                else:
-                    raise Abort
-
-        def parse_key_predicate(s):
-            s = s[1:] # skip '['
-            s = skip_space(s)
-            (identifier, s) = parse_identifier(s)
-            s = skip_space(s)
-            s = s[1:] # skip '='
-            s = skip_space(s)
-            if s[:7] == 'current':
-                s = s[7:] # skip 'current'
-                s = skip_space(s)
-                s = s[1:] # skip '('
-                s = skip_space(s)
-                s = s[1:] # skip ')'
-                s = skip_space(s)
-                s = s[1:] # skip '/'
-                s = skip_space(s)
-                (up, s) = parse_dot_dot(s)
-                s = skip_space(s)
-            else:
-                up = -1
-                b = s.find(']') + 1
-                s = s[b:]
-                if len(s) > 0 and s[0] == '/':
-                    s = s[1:] # skip '/'
-            dn = []
-            while len(s) > 0:
-                (xidentifier, s) = parse_identifier(s)
-                dn.append(xidentifier)
-                s = skip_space(s)
-                if len(s) == 0:
-                    break
-                if s[0] == '/':
-                    s = s[1:] # skip '/'
-                elif s[0] == ']':
-                    s = s[1:] # skip ']'
-                    break
-            return (('predicate', identifier, up, dn), s)
-
-        def parse_descendant(s):
-            dn = []
-            # all '..'s are now parsed
-            while len(s) > 0 and (not s[0].isspace()) and s[0] != ')':
-                (identifier, s) = parse_identifier(s)
-                dn.append(identifier)
-                s = skip_space(s)
-                if len(s) == 0:
-                    break
-                while len(s) > 0 and s[0] == '[':
-                    (pred, s) = parse_key_predicate(s)
-                    dn.append(pred)
-                    s = skip_space(s)
-                if len(s) > 0 and s[0] == '/':
-                    s = s[1:] # skip '/'
-
-            return (dn, s)
-
-        derefup = 0
-        derefdn = None
-        if s.startswith('deref'):
-            s = s[5:] # skip 'deref'
-            s = skip_space(s)
-            s = s[1:] # skip '('
-            s = skip_space(s)
-            (derefup, s) = parse_dot_dot(s)
-            (derefdn, s) = parse_descendant(s)
-            s = skip_space(s)
-            s = s[1:] # skip ')'
-            s = skip_space(s)
-            s = s[1:] # skip '/'
-
-        (up, s) = parse_dot_dot(s)
-        (dn, s) = parse_descendant(s)
-        return (up, dn, derefup, derefdn)
+                if not validate_prefix(segment):
+                    result = False
+        return result
 
     try:
-        return parse_keypath(path.arg)
-    except Abort:
+        parsed = leafref_path_parser.parse(path.arg)
+    except SyntaxError as exc:
+        err_add(errors, path.pos, 'LEAFREF_PATH_SYNTAX_ERROR', exc)
         return None
+    else:
+        valid = validate_prefixes(parsed[1])
+        if parsed[3] is not None and not validate_prefixes(parsed[3]):
+            valid = False
+        return parsed if valid else None
 
 class LeafrefTypeSpec(TypeSpec):
     def __init__(self):

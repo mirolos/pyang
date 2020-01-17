@@ -7,6 +7,7 @@ pyang.egg-info
 .cache
 # created during test:
 xpath_parsetab.py
+leafref_path_parsetab.py
 .pytest_cache
 .python-version
 *.rnc

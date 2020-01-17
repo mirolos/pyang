@@ -8,13 +8,16 @@ dist: build
 	python setup.py sdist
 
 .PHONY:	test tags clean doc build lint
-build: doc pyang/xpath_parsetab.py
+build: doc pyang/xpath_parsetab.py pyang/leafref_path_parsetab.py
 
 doc:
 	(cd doc; $(MAKE))
 
 pyang/xpath_parsetab.py: pyang/xpath_parser.py
 	python -m pyang.xpath_parser
+
+pyang/leafref_path_parsetab.py: pyang/leafref_path_parser.py
+	python -m pyang.leafref_path_parser
 
 test: lint
 	(cd test; $(MAKE) test)
@@ -23,12 +26,13 @@ lint:
 	flake8 .
 
 clean:
-	rm -f pyang/parser.out pyang/xpath_parsetab.py
+	rm -f pyang/parser.out pyang/xpath_parsetab.py pyang/leafref_path_parsetab.py
 	(cd test && $(MAKE) clean)
 	(cd doc &&  $(MAKE) clean)
 	python setup.py clean --all
 	rm -rf build dist MANIFEST
 	find . -name "*.pyc" -exec rm {} \;
+	find . -name "__pycache__" -exec rm -r {} \;
 
 tags:
 	find . -name "*.py" | etags -
