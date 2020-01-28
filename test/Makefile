@@ -1,7 +1,7 @@
 DIRS = $(shell for d in test_* ; \
 	do [ -d $$d -a -f $$d/Makefile ] && echo $$d ; done)
 
-test:
+test: clean
 	$(MAKE) itest
 
 test_all: python2_test python3_test
