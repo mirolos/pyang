@@ -6,7 +6,7 @@ export JSON2XML := $(COVERAGE) $(W)/bin/json2xml
 export YANG2HTML := $(COVERAGE) $(W)/bin/yang2html
 export YANG2DSDL := env PYANG='$(PYANG)' $(W)/bin/yang2dsdl
 
-test: clean
+test:
 	$(MAKE) itest
 
 test_all: python2_test python3_test
