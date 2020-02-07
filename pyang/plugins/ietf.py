@@ -6,6 +6,7 @@ import optparse
 import sys
 import re
 
+from pyang import util
 from pyang import plugin
 from pyang import statements
 from pyang import error
@@ -81,7 +82,7 @@ class IETFPlugin(lint.LintPlugin):
                     err_add(ctx.errors, s.pos, 'IETF_MISSING_RFC8174', ())
 
 def print_help():
-    print("""
+    util.stderr.write("""
 Validates the module or submodule according to the IETF rules found
 in RFC 8407.
 

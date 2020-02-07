@@ -22,7 +22,6 @@ message into JSON.
 """
 
 import os
-import sys
 import xml.etree.ElementTree as ET
 
 from pyang import plugin, error
@@ -91,12 +90,7 @@ class JsonXslPlugin(plugin.PyangPlugin):
             when = ET.SubElement(choo, "when", test="$uri='" + ns_uri + "'")
             self.xsl_text(module.i_modulename, when)
             self.process_module(module)
-        if sys.version > "3":
-            tree.write(fd, encoding="unicode", xml_declaration=True)
-        elif sys.version > "2.7":
-            tree.write(fd, encoding="UTF-8", xml_declaration=True)
-        else:
-            tree.write(fd, encoding="UTF-8")
+        tree.write(fd.buffer, encoding="UTF-8", xml_declaration=True)
 
     def process_module(self, yam):
         """Process data nodes, RPCs and notifications in a single module."""

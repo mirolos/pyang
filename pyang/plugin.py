@@ -59,9 +59,8 @@ def init(plugindirs=None):
             pluginmod = __import__(modname)
             try:
                 pluginmod.pyang_plugin_init()
-            except AttributeError as s:
-                print(pluginmod.__dict__)
-                raise AttributeError(pluginmod.__file__ + ': ' + str(s))
+            except AttributeError as err:
+                raise AttributeError("%s: %s" % (pluginmod.__file__, err))
         sys.path = syspath
 
 def register_plugin(plugin):
@@ -180,7 +179,7 @@ class PyangPlugin(object):
         """Produce the plugin output.
 
         Override this method to perform the output conversion.
-        `fd` is a file-like object open for writing.
+        `fd` is a file-like object open for writing in text mode.
 
         Raise error.EmitError on failure.
         """

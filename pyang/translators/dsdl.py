@@ -15,6 +15,14 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+from __future__ import unicode_literals
+import optparse
+import time
+
+from pyang import plugin, error, xpath_lexer, util, statements, types
+
+from .schemanode import SchemaNode
+
 """Translator from YANG to hybrid DSDL schema.
 
 It is designed as a plugin for the pyang program and defines several
@@ -42,14 +50,6 @@ Three classes are defined in this module:
 
 __docformat__ = "reStructuredText"
 
-import sys
-import optparse
-import time
-
-
-from pyang import plugin, error, xpath_lexer, util, statements, types
-
-from .schemanode import SchemaNode
 
 def pyang_plugin_init():
     plugin.register_plugin(DSDLPlugin())
@@ -85,8 +85,8 @@ class DSDLPlugin(plugin.PyangPlugin):
                                  help="Try to translate modules with "
                                  "unsupported YANG versions (use at own risk)"),
             ]
-        g = optparser.add_option_group("Hybrid DSDL schema "
-                                       "output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "Hybrid DSDL schema output specific options"))
         g.add_options(optlist)
 
     def emit(self, ctx, modules, fd):
@@ -917,8 +917,8 @@ class HybridDSDLSchema(object):
         and perform all side effects as necessary.
         """
         if self.debug > 0:
-            sys.stderr.write("Handling '%s %s'\n" %
-                             (util.keyword_to_str(stmt.raw_keyword), stmt.arg))
+            util.stderr.write("Handling '%s %s'\n" %
+                              (util.keyword_to_str(stmt.raw_keyword), stmt.arg))
         try:
             method = self.stmt_handler[stmt.keyword]
         except KeyError:
@@ -1262,8 +1262,8 @@ class HybridDSDLSchema(object):
     def identityref_type(self, tchain, p_elem):
         bid = tchain[0].search_one("base").i_identity
         if bid not in self.identity_deps:
-            sys.stderr.write("%s: warning: identityref has empty value space\n"
-                             % tchain[0].pos)
+            util.stderr.write("%s: warning: identityref has empty value space\n"
+                              % tchain[0].pos)
             p_elem.subnode(SchemaNode("notAllowed"))
             p_elem.occur = 0
             return

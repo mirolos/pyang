@@ -3,6 +3,7 @@ Generates a html/javascript page that presents a tree-navigator
 to the YANG module(s).
 """
 
+from __future__ import unicode_literals
 import optparse
 
 from pyang import plugin
@@ -29,7 +30,8 @@ class JSTreePlugin(plugin.PyangPlugin):
                                  help="Subtree to print"),
             ]
 
-        g = optparser.add_option_group("JSTree output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "JSTree output specific options"))
         g.add_options(optlist)
 
     def setup_fmt(self, ctx):

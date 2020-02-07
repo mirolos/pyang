@@ -2,6 +2,7 @@
 
 """
 
+from __future__ import unicode_literals
 import optparse
 
 from pyang import plugin
@@ -21,7 +22,8 @@ class NamePlugin(plugin.PyangPlugin):
                                  action="store_true",
                                  help="Print the name and revision in name@revision format"),
             ]
-        g = optparser.add_option_group("Name output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "Name output specific options"))
         g.add_options(optlist)
 
     def setup_fmt(self, ctx):

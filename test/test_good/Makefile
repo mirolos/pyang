@@ -1,4 +1,5 @@
 PYANGE := $(PYANG) -Werror -WWBAD_MODULE_NAME
+FORMATS = yang yin depend identifiers jsonxsl jstree jtox name omni uml
 
 test: clean utf8-test mef-ieee-test
 	@for m in $(wildcard *.yang); do 				\
@@ -26,9 +27,13 @@ test: clean utf8-test mef-ieee-test
 	done
 
 utf8-test:
-	$(PYANG) -f yang q.yang || exit 1; \
-	$(PYANG) -f yang q.yang > x || exit 1; \
-	$(PYANG) -f yang q.yang -o x || exit 1; \
+	@for f in $(FORMATS) ; do \
+	  $(PYANG) -f $$f q.yang || exit 1; \
+	  $(PYANG) -f $$f < q.yang > x || exit 1; \
+	  $(PYANG) -f $$f q.yang -o x || exit 1; \
+	  LC_ALL=C $(PYANG) -f $$f < q.yang > x || exit 1; \
+	  LC_ALL=C $(PYANG) -f $$f q.yang -o x || exit 1; \
+        done; \
 	rm -f x
 
 mef-ieee-test:

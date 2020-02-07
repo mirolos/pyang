@@ -3,8 +3,8 @@ This plugin checks if an updated version of a module follows
 the rules defined in Section 10 of RFC 6020 and Section 11 of RFC 7950.
 """
 
+from __future__ import unicode_literals
 import optparse
-import sys
 import os
 import io
 
@@ -147,21 +147,20 @@ def check_update(ctx, newmod):
     oldctx.lax_quote_checks = ctx.lax_quote_checks
 
     if ctx.opts.verbose:
-        print("Loading old modules from:")
+        util.stderr.write("Loading old modules from:\n")
         for d in oldrepo.dirs:
-            print("  %s" % d)
-        print("")
+            util.stderr.write("  %s\n" % d)
+        util.stderr.write("\n")
 
     for p in plugin.plugins:
         p.setup_ctx(oldctx)
 
     for oldfilename in [ctx.opts.check_update_from] + ctx.opts.old_deviation:
         try:
-            fd = io.open(oldfilename, "r", encoding="utf-8")
-            text = fd.read()
+            with io.open(oldfilename, "r", encoding="utf-8", newline='') as fd:
+                text = fd.read()
         except IOError as ex:
-            sys.stderr.write("error %s: %s\n" % (oldfilename, ex))
-            sys.exit(1)
+            raise error.EmitError("error %s: %s\n" % (oldfilename, ex))
         if oldfilename in ctx.opts.old_deviation:
             oldctx.add_module(oldfilename, text)
         else:
@@ -179,11 +178,11 @@ def check_update(ctx, newmod):
             return
 
     if ctx.opts.verbose:
-        print("Loaded old modules:")
+        util.stderr.write("Loaded old modules:\n")
         for x in oldrepo.get_modules_and_revisions(oldctx):
             (m, r, (fmt, filename)) = x
-            print("  %s" % filename)
-        print("")
+            util.stderr.write("  %s\n" % filename)
+        util.stderr.write("\n")
 
     chk_module(ctx, oldmod, newmod)
 

@@ -6,12 +6,14 @@ and [I-D.ietf-core-yang-library] for more information.
 
 """
 
+from __future__ import unicode_literals
 import optparse
 import sys
 import collections
 import re
 import os
 import errno
+import io
 import json
 
 try:
@@ -66,7 +68,8 @@ class SidPlugin(plugin.PyangPlugin):
                                  help="Add an extra SID range during a .sid file update."),
             ]
 
-        g = optparser.add_option_group("SID file specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "SID file specific options"))
         g.add_options(optlist)
 
     def setup_ctx(self, ctx):
@@ -88,7 +91,8 @@ class SidPlugin(plugin.PyangPlugin):
         if nbr_option_specified == 0:
             return
         if nbr_option_specified > 1:
-            sys.stderr.write("Invalid option, only one process on .sid file can be requested.\n")
+            util.stderr.write("Invalid option, only one action on .sid file "
+                              "can be requested.\n")
             return
 
         fatal_error = False
@@ -97,7 +101,7 @@ class SidPlugin(plugin.PyangPlugin):
                 fatal_error = True
 
         if fatal_error or ctx.errors and ctx.opts.check_sid_file is not None:
-            sys.stderr.write("Invalid YANG module\n")
+            util.stderr.write("Invalid YANG module\n")
             return
 
         sid_file = SidFile()
@@ -117,14 +121,15 @@ class SidPlugin(plugin.PyangPlugin):
             sid_file.input_file_name = ctx.opts.check_sid_file
             sid_file.check_consistency = True
             if not sid_file.sid_registration_info:
-                print("Checking consistency of '%s'" % sid_file.input_file_name)
+                util.stderr.write("Checking consistency of '%s'\n"
+                                  % sid_file.input_file_name)
 
         if ctx.opts.extra_sid_range is not None:
             if ctx.opts.update_sid_file is not None:
                 sid_file.extra_range = ctx.opts.extra_sid_range
             else:
-                sys.stderr.write(
-                    "An extra SID range can be specified only during a .sid file update.\n")
+                util.stderr.write("An extra SID range can be specified only "
+                                  "during a .sid file update.\n")
                 return
 
         if ctx.opts.list_sid:
@@ -134,24 +139,27 @@ class SidPlugin(plugin.PyangPlugin):
             sid_file.process_sid_file(modules[0])
 
         except SidParsingError as e:
-            sys.stderr.write("ERROR, %s\n" % e)
+            util.stderr.write("ERROR, %s\n" % e)
         except SidFileError as e:
-            sys.stderr.write("ERROR in '%s', %s\n" % (sid_file.input_file_name, e))
+            util.stderr.write("ERROR in '%s', %s\n"
+                              % (sid_file.input_file_name, e))
         except EnvironmentError as e:
             if e.errno == errno.ENOENT:
-                sys.stderr.write("ERROR, file '%s' not found\n" % e.filename)
+                util.stderr.write("ERROR, file '%s' not found\n" % e.filename)
             else:
-                sys.stderr.write("ERROR, in file '%s' " % e.filename)
+                util.stderr.write("ERROR, in file '%s'\n" % e.filename)
         except JSONDecodeError as e:
-            sys.stderr.write("ERROR in '%s', %s\n" % (sid_file.input_file_name, e))
+            util.stderr.write("ERROR in '%s', %s\n"
+                              % (sid_file.input_file_name, e))
         except ValueError as e:
-            sys.stderr.write("ERROR in '%s', invalid JSON content\n" % sid_file.input_file_name)
+            util.stderr.write("ERROR in '%s', invalid JSON content\n"
+                              % sid_file.input_file_name)
         else:
             sys.exit(0)
         sys.exit(1)
 
 def print_help():
-    print("""
+    util.stderr.write("""
 YANG Schema Item iDentifiers (SID) are globally unique unsigned integers used
 to identify YANG items. SIDs are used instead of names to save space in
 constrained applications such as COREconf. This plugin is used to automatically
@@ -287,8 +295,8 @@ class SidFile:
             if not self.input_file_name.endswith(".sid"):
                 raise SidParsingError("File '%s' is not a .sid file" % self.input_file_name)
 
-            with open(self.input_file_name) as f:
-                self.content = json.load(f, object_pairs_hook=collections.OrderedDict)
+            with io.open(self.input_file_name, 'r', encoding='utf-8', newline='') as fd:
+                self.content = json.load(fd, object_pairs_hook=collections.OrderedDict)
             # Upgrades can be removed after a reasonable transition period.
             self.upgrade_sid_file_format()
             self.validate_key_and_value()
@@ -307,7 +315,8 @@ class SidFile:
 
         if self.range == 'count':
             number_of_unassigned_yang_items = self.number_of_unassigned_yang_items()
-            print("\nThis YANG module requires %d SIDs." % number_of_unassigned_yang_items)
+            util.stderr.write("\nThis YANG module requires %d SIDs.\n"
+                              % number_of_unassigned_yang_items)
             return
 
         if self.extra_range == 'count':
@@ -316,15 +325,19 @@ class SidFile:
             number_of_sids_available = number_of_sids_allocated - number_of_sids_used
             number_of_unassigned_yang_items = self.number_of_unassigned_yang_items()
 
-            print("\nNumber of SIDs allocated to this module: %d" % number_of_sids_allocated)
-            print("Number of SIDs required by this version: %d"
-                  % (number_of_sids_used + number_of_unassigned_yang_items))
+            util.stderr.write("\nNumber of SIDs allocated to this module: %d\n"
+                              % number_of_sids_allocated)
+            util.stderr.write("Number of SIDs required by this version: %d\n"
+                              % (number_of_sids_used + number_of_unassigned_yang_items))
             if number_of_unassigned_yang_items > number_of_sids_available:
-                print("\nAn extra range of at least %d SIDs is required to perform this update."
-                      % (number_of_unassigned_yang_items - number_of_sids_available))
+                util.stderr.write(
+                    "\nAn extra range of at least %d SIDs is required to perform "
+                    "this update.\n"
+                    % (number_of_unassigned_yang_items - number_of_sids_available))
             else:
-                print("\nThe update of the .sid file can be performed using "
-                      "the currently available SIDs.")
+                util.stderr.write(
+                    "\nThe update of the .sid file can be performed using "
+                    "the currently available SIDs.\n")
             return
 
         self.sort_items()
@@ -340,21 +353,26 @@ class SidFile:
                 if self.sid_registration_info:
                     self.print_registration_information(module)
                 else:
-                    print("\nCheck completed successfully")
+                    util.stderr.write("\nCheck completed successfully\n")
             else:
-                print("\nThe .sid file needs to be updated.")
+                util.stderr.write("\nThe .sid file needs to be updated\n")
         else:
             if self.is_consistent:
-                print("No .sid file generated, the current .sid file is already up to date.")
+                util.stderr.write("\nNo .sid file generated, the current "
+                                  ".sid file is already up to date.\n")
             else:
                 self.generate_file()
                 if self.sid_file_created:
-                    print("\nFile %s created" % self.output_file_name)
+                    util.stderr.write(
+                        "\nFile %s created\n" % self.output_file_name)
                 else:
-                    print("\nFile %s updated" % self.output_file_name)
+                    util.stderr.write(
+                        "\nFile %s updated\n" % self.output_file_name)
 
-                print("Number of SIDs available : %d" % self.number_of_sids_allocated())
-                print("Number of SIDs used : %d" % self.number_of_sids_used())
+                util.stderr.write("Number of SIDs available : %d\n"
+                                  % self.number_of_sids_allocated())
+                util.stderr.write("Number of SIDs used : %d\n"
+                                  % self.number_of_sids_used())
 
 
     ########################################################
@@ -376,15 +394,17 @@ class SidFile:
         if self.module_name != self.content.get('module-name'):
             self.content['module-name'] = self.module_name
             if self.check_consistency:
-                print("ERROR, Mismatch between the module name defined "
-                      "in the .sid file and the .yang file.")
+                util.stderr.write(
+                    "ERROR, Mismatch between the module name defined "
+                    "in the .sid file and the .yang file.\n")
                 self.is_consistent = False
 
         if self.module_revision != self.content.get('module-revision'):
             self.content['module-revision'] = self.module_revision
             if self.check_consistency:
-                print("ERROR, Mismatch between the module revision defined "
-                      "in the .sid file and the .yang file.")
+                util.stderr.write(
+                    "ERROR, Mismatch between the module revision defined "
+                    "in the .sid file and the .yang file.\n")
                 self.is_consistent = False
 
     ########################################################
@@ -724,8 +744,8 @@ class SidFile:
     def list_all_items(self):
         definition_removed = False
 
-        print("\nSID        Assigned to")
-        print("---------  --------------------------------------------------")
+        util.stderr.write("\nSID        Assigned to\n")
+        util.stderr.write("%s  %s\n" % ('-' * 9, '-' * 50))
         for item in self.content['items']:
             status = ""
             if item['status'] == 'n' and not self.sid_file_created:
@@ -734,25 +754,31 @@ class SidFile:
                 status = " (Remove)"
                 definition_removed = True
 
-            print("%-9s  %s %s%s" % (item['sid'], item['namespace'], item['identifier'], status))
+            util.stderr.write(
+                "%-9s  %s %s%s\n"
+                % (item['sid'], item['namespace'], item['identifier'], status))
 
         if definition_removed:
-            print(
-                "\nWARNING, obsolete definitions should be defined as 'deprecated' or 'obsolete'.")
+            util.stderr.write(
+                "\nWARNING, obsolete definitions should be defined "
+                "as 'deprecated' or 'obsolete'.")
 
     ########################################################
     def list_deleted_items(self):
         definition_removed = False
         for item in self.content['items']:
             if item['status'] == 'd':
-                print("WARNING, item '%s' was deleted form the .yang files." % item['identifier'])
+                util.stderr.write(
+                    "WARNING, item '%s' was deleted form the .yang files."
+                    % item['identifier'])
                 definition_removed = True
 
         if definition_removed:
-            print("Obsolete definitions MUST NOT be removed "
-                  "from YANG modules, see RFC 6020 section 10.\n"
-                  "These definition(s) should be reintroduced "
-                  "with a 'deprecated' or 'obsolete' status.")
+            util.stderr.write(
+                "Obsolete definitions MUST NOT be removed "
+                "from YANG modules, see RFC 6020 section 10.\n"
+                "These definition(s) should be reintroduced "
+                "with a 'deprecated' or 'obsolete' status.\n")
 
     ########################################################
     def generate_file(self):
@@ -762,8 +788,8 @@ class SidFile:
         if os.path.exists(self.output_file_name):
             os.remove(self.output_file_name)
 
-        with open(self.output_file_name, 'w') as outfile:
-            json.dump(self.content, outfile, indent=2)
+        with io.open(self.output_file_name, 'w') as outfile:
+            util.json_dump(self.content, outfile, indent=2)
 
     ########################################################
     def number_of_sids_allocated(self):
@@ -807,7 +833,7 @@ class SidFile:
             if submodule.keyword == 'submodule':
                 submodules.append('%s@%s.yang' % (submodule.arg, submodule.i_latest_revision))
 
-        print(json.dumps(info, indent=2))
+        util.json_dump(info, indent=2)
 
     ########################################################
     # Perform the conversion to the .sid file fromat introduced by [I-D.ietf-core-sid] version 3.

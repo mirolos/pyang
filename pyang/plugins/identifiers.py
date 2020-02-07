@@ -1,6 +1,7 @@
 """Identifiers output plugin
 """
 
+from __future__ import unicode_literals
 from pyang import plugin
 from pyang import statements
 

@@ -2,6 +2,7 @@
 
 # check that some internal data structures are conistent
 
+from __future__ import unicode_literals
 import sys
 import glob
 import subprocess
@@ -9,6 +10,7 @@ import subprocess
 from pyang import error
 from pyang import grammar
 from pyang import syntax
+from pyang import util
 
 
 def oscmd(cmd):
@@ -30,10 +32,10 @@ def chk_error_codes():
     retcode, out, err = oscmd(
         ['pyang', '--list-errors', '--lint', '--ieee', '--ietf'])
     if retcode:
-        sys.stderr.write('Cannot list errors from pyang\n')
+        util.stderr.write('Cannot list errors from pyang\n')
         if err:
             for line in err.split('\n'):
-                sys.stderr.write('[pyang] %s\n' % line)
+                util.stderr.write('[pyang] %s\n' % line)
         found_error = True
         listed_codes = set()
     else:
@@ -42,19 +44,19 @@ def chk_error_codes():
                            if line.startswith(error_categories))
         for code in error.error_codes:
             if code not in listed_codes:
-                sys.stderr.write('Error code: %s not listed by pyang\n' % code)
+                util.stderr.write('Error code: %s not listed by pyang\n' % code)
                 found_error = True
 
     files = glob.glob("../pyang/*.py") + glob.glob("../pyang/*/*.py")
     all_codes = sorted(set(error.error_codes) | listed_codes)
     for code in all_codes:
-        retcode, out, _ = oscmd(['grep', '-e', r'\b%s\b' % code, '--'] + files)
+        retcode, out, err = oscmd(['grep', '-e', r'\b%s\b' % code, '--'] + files)
         # A used error code has has inner newlines in output for 2+ occurences
         if retcode or out.count('\n') == 0:
-            sys.stderr.write("Error code: %s not used\n" % code)
+            util.stderr.write("Error code: %s not used\n" % code)
             if err:
                 for line in err.split('\n'):
-                    sys.stderr.write('[grep] %s\n' % line)
+                    util.stderr.write('[grep] %s\n' % line)
             found_error = True
     return found_error
 
@@ -67,8 +69,8 @@ def chk_stmts():
         for test_map, test_name in stmt_maps:
             if test_map is not stmt_map:
                 for stmt in stmt_map - test_map:
-                    sys.stderr.write("Stmt %s in %s not found in %s\n"
-                                     % (stmt, name, test_name))
+                    util.stderr.write("Stmt %s in %s not found in %s\n"
+                                      % (stmt, name, test_name))
                     found_error = True
     return found_error
 

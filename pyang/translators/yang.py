@@ -1,5 +1,6 @@
 """YANG output plugin"""
 
+from __future__ import unicode_literals
 import optparse
 
 from .. import plugin
@@ -31,7 +32,8 @@ class YANGPlugin(plugin.PyangPlugin):
                                  dest="yang_line_length",
                                  help="Maximum line length"),
             ]
-        g = optparser.add_option_group("YANG output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "YANG output specific options"))
         g.add_options(optlist)
 
     def setup_fmt(self, ctx):

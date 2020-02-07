@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 from __future__ import unicode_literals
 import argparse
-import codecs
+import io
 import json
 import numbers
 import re
@@ -126,9 +126,7 @@ class Translator (object):
     def translate(self, json_doc, xml_root):
         """Translate `json_doc` and attach the result under `xml_root`."""
         try:
-            try:
-                json_doc.fileno                               # Is it a file?
-            except AttributeError:
+            if isinstance(json_doc, str_types):
                 d = json.loads(json_doc)
             else:
                 d = json.load(json_doc)
@@ -406,6 +404,9 @@ class Translator (object):
 
 def main():
     """Parse arguments, open files, create and run the translator."""
+    stderr = io.open(sys.stderr.fileno(),
+                     'w', encoding='utf-8', closefd=False, newline='')
+
     parser = argparse.ArgumentParser(
         description="JSON to XML conversion driven by a YANG data model.")
     parser.add_argument("jtox", metavar="driver_file", action="store",
@@ -417,36 +418,55 @@ def main():
     parser.add_argument("-o", "--output", action="store",
                         help="output file (default: standard output)")
     args = parser.parse_args()
+
     if args.target not in ["data", "config"]:
-        sys.stderr.write("%s: error: unknown target '%s'\n" % (parser.prog, args.target))
+        stderr.write("%s: error: unknown target '%s'\n"
+                     % (parser.prog, args.target))
         return 2
+
     try:
-        dfile = codecs.open(args.jtox, encoding="utf-8")
-        jfile = sys.stdin \
-            if args.json == "-" else codecs.open(args.json, encoding="utf-8")
-        outfile = (sys.stdout if sys.version < "3" else sys.stdout.buffer) \
-            if args.output is None else open(args.output, "wb")
-        jtox = json.load(dfile)
+        with io.open(args.jtox, 'r', encoding='utf-8', newline='') as source:
+            jtox = json.load(source)
     except IOError as e:
-        sys.stderr.write("%s: error: %s: '%s'\n" %
-                         (parser.prog, e.strerror, e.filename))
+        stderr.write("%s: error: %s: '%s'\n" %
+                     (parser.prog, e.strerror, e.filename))
         return 1
     except ValueError as e:
-        sys.stderr.write("%s: error: %s\n" %
-                         (parser.prog, e.message))
+        stderr.write("%s: error: %s\n" % (parser.prog, e))
         return 1
+
     nc_uri = "urn:ietf:params:xml:ns:netconf:base:1.0"
     ET.register_namespace("nc", nc_uri)
     root_el = ET.Element("{%s}%s" % (nc_uri, args.target))
     trans = Translator(jtox)
+
     try:
-        trans.translate(jfile, root_el)
+        isfile = args.json != "-"
+        opened = args.json if isfile else sys.stdin.fileno()
+        with io.open(opened, 'r',
+                     encoding='utf-8', closefd=isfile, newline='') as source:
+            trans.translate(source, root_el)
+    except IOError as e:
+        stderr.write("%s: error: %s: '%s'\n"
+                     % (parser.prog, e.strerror, e.filename))
+        return 1
     except Error as e:
-        sys.stderr.write("%s: %s\n" % (parser.prog, e))
+        stderr.write("%s: %s\n" % (parser.prog, e))
         return e.return_value
+
     for m in set(trans.prefix) - trans.node_modules:
         root_el.attrib["xmlns:" + trans.prefix[m]] = trans.uri[m]
-    ET.ElementTree(root_el).write(outfile, encoding="utf-8", xml_declaration=True)
+
+    try:
+        isfile = args.output is not None
+        opened = args.output if isfile else sys.stdout.fileno()
+        with io.open(opened, 'wb', closefd=isfile) as outfile:
+            ET.ElementTree(root_el).write(
+                outfile, encoding="utf-8", xml_declaration=True)
+    except IOError as e:
+        stderr.write("%s: error: %s: '%s'\n" %
+                     (parser.prog, e.strerror, e.filename))
+        return 1
     return 0
 
 if __name__ == "__main__":

@@ -6,12 +6,15 @@
 # Works on the syntax level and does thus not include any intelligent
 # links or anything.
 
+from __future__ import unicode_literals
+import io
 import sys
 import optparse
 from xml.sax.saxutils import escape
 
 import pyang
 import pyang.syntax
+import pyang.util
 
 
 usage = """%prog [-d] [-c] [<filename>]
@@ -58,28 +61,19 @@ optparser.add_options(optlist)
 (o, args) = optparser.parse_args()
 
 if len(args) > 1:
-    sys.stderr.write("too many files to convert")
+    pyang.util.stderr.write("too many files to convert")
     sys.exit(1)
 
-
-if len(args) == 0:
-    # read the entire doc into buf
-    buf = ""
-    for line in sys.stdin:
-        buf = buf + line
-else:
-    filename = args[0]
-    try:
-        fd = open(filename)
+try:
+    fd = (io.open(args[0], 'r', encoding='utf-8', newline='')
+          if args else pyang.util.stdin)
+    with fd:
         buf = fd.read()
-    except IOError as ex:
-        sys.stderr.write("error %s: %s\n" % (filename, ex))
-        sys.exit(1)
+except IOError as ex:
+    pyang.util.stderr.write("error %s: %s\n"
+                            % (args[0] if args else sys.stdin.name, ex))
+    sys.exit(1)
 
-if o.outfile is None:
-    fd = sys.stdout
-else:
-    fd = open(o.outfile, "w+")
 
 def emit_css():
     fd.write("""
@@ -104,102 +98,109 @@ span.str {
 </style>
 """)
 
-i = 0
-q = None
-keyword_next = True
-begin_yang = '<pre class="yang">'
-
-if o.scan_document:
-    no_yang = True
-else:
-    no_yang = False
-    if o.emit_css:
-        o.emit_css = False
-        emit_css()
-    fd.write(begin_yang)
-
-while i < len(buf):
-    if no_yang and buf[i:].startswith(begin_yang):
-        no_yang = False
-        fd.write(buf[:i])
-        if o.emit_css:
-            o.emit_css = False
-            emit_css()
-        fd.write(begin_yang)
-        buf = buf[i+len(begin_yang):]
+try:
+    fd = (io.open(o.outfile, 'w', encoding='utf-8', newline='')
+          if o.outfile else pyang.util.stdout)
+    with fd:
         i = 0
-        continue
-    elif no_yang:
-        i = i + 1
-        continue
-    elif not no_yang and buf[i:].startswith('</pre>'):
-        no_yang = True
-        continue
-    if q == '"' and buf[i] == '\\':
-        i = i + 2
-        continue
-    if q is not None and buf[i] == q:
-        fd.write("<span class='str'>")
-        fd.write(q)
-        fd.write(escape(buf[:i+1]))
-        fd.write("</span>")
-        buf = buf[i+1:]
         q = None
-        i = 0
-    elif q is not None:
-        i = i + 1
-        continue
-    if buf[i] == '/' and buf[i+1] == '/':
-        end = buf.find("\n", i)
-        if end == -1:
-            end = len(buf)
-        fd.write(buf[:i])
-        fd.write("<span class='cmt'>")
-        fd.write(escape(buf[i:end]))
-        fd.write("</span>\n")
-        buf = buf[end+1:]
-        i = 0
-    elif buf[i] == '/' and buf[i+1] == '*':
-        end = buf.find("*/", i)
-        if end == -1:
-            end = len(buf)
-        fd.write(buf[:i])
-        fd.write("<span class='cmt'>")
-        fd.write(escape(buf[i:end]))
-        fd.write("*/</span>")
-        buf = buf[end+2:]
-        i = 0
-    elif buf[i] == '"':
-        fd.write(buf[:i])
-        q = '"'
-        buf = buf[i+1:]
-        i = 0
-    elif buf[i] == "'":
-        fd.write(buf[:i])
-        q = "'"
-        buf = buf[i+1:]
-        i = 0
-    elif buf[i].isspace():
-        i = i + 1
-    elif keyword_next:
-        m = pyang.syntax.re_keyword.match(buf, i)
-        if m is not None:
-            kw = m.group()
-            if kw in pyang.syntax.yin_map:
-                fd.write(buf[:i])
-                fd.write("<span class='kw'>" + kw + "</span>")
-                buf = buf[i+len(kw):]
-                i = 0
-                keyword_next = False
-                continue
-        i = i + 1
-    elif buf[i] in ['{', '}', ';']:
         keyword_next = True
-        i = i + 1
-    else:
-        i = i + 1
+        begin_yang = '<pre class="yang">'
 
-fd.write(buf)
+        if o.scan_document:
+            no_yang = True
+        else:
+            no_yang = False
+            if o.emit_css:
+                o.emit_css = False
+                emit_css()
+            fd.write(begin_yang)
 
-if not o.scan_document:
-    fd.write('</pre>\n')
+        while i < len(buf):
+            if no_yang and buf[i:].startswith(begin_yang):
+                no_yang = False
+                fd.write(buf[:i])
+                if o.emit_css:
+                    o.emit_css = False
+                    emit_css()
+                fd.write(begin_yang)
+                buf = buf[i+len(begin_yang):]
+                i = 0
+                continue
+            elif no_yang:
+                i = i + 1
+                continue
+            elif not no_yang and buf[i:].startswith('</pre>'):
+                no_yang = True
+                continue
+            if q == '"' and buf[i] == '\\':
+                i = i + 2
+                continue
+            if q is not None and buf[i] == q:
+                fd.write("<span class='str'>")
+                fd.write(q)
+                fd.write(escape(buf[:i+1]))
+                fd.write("</span>")
+                buf = buf[i+1:]
+                q = None
+                i = 0
+            elif q is not None:
+                i = i + 1
+                continue
+            if buf[i] == '/' and buf[i+1] == '/':
+                end = buf.find("\n", i)
+                if end == -1:
+                    end = len(buf)
+                fd.write(buf[:i])
+                fd.write("<span class='cmt'>")
+                fd.write(escape(buf[i:end]))
+                fd.write("</span>\n")
+                buf = buf[end+1:]
+                i = 0
+            elif buf[i] == '/' and buf[i+1] == '*':
+                end = buf.find("*/", i)
+                if end == -1:
+                    end = len(buf)
+                fd.write(buf[:i])
+                fd.write("<span class='cmt'>")
+                fd.write(escape(buf[i:end]))
+                fd.write("*/</span>")
+                buf = buf[end+2:]
+                i = 0
+            elif buf[i] == '"':
+                fd.write(buf[:i])
+                q = '"'
+                buf = buf[i+1:]
+                i = 0
+            elif buf[i] == "'":
+                fd.write(buf[:i])
+                q = "'"
+                buf = buf[i+1:]
+                i = 0
+            elif buf[i].isspace():
+                i = i + 1
+            elif keyword_next:
+                m = pyang.syntax.re_keyword.match(buf, i)
+                if m is not None:
+                    kw = m.group()
+                    if kw in pyang.syntax.yin_map:
+                        fd.write(buf[:i])
+                        fd.write("<span class='kw'>" + kw + "</span>")
+                        buf = buf[i+len(kw):]
+                        i = 0
+                        keyword_next = False
+                        continue
+                i = i + 1
+            elif buf[i] in ['{', '}', ';']:
+                keyword_next = True
+                i = i + 1
+            else:
+                i = i + 1
+
+        fd.write(buf)
+
+        if not o.scan_document:
+            fd.write('</pre>\n')
+except IOError as ex:
+    pyang.util.stderr.write("error %s: %s\n" % (o.outfile or sys.stdout.name, ex))
+    sys.exit(1)

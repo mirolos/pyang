@@ -482,20 +482,16 @@ class FileRepository(Repository):
 
     def get_module_from_handle(self, handle):
         in_format, absfilename = handle
-        fd = None
         try:
-            fd = io.open(absfilename, "r", encoding="utf-8")
-            text = fd.read()
+            with io.open(absfilename, "r", encoding="utf-8", newline='') as fd:
+                text = fd.read()
             if self.verbose:
                 util.report_file_read(absfilename)
         except IOError as ex:
             raise self.ReadError("%s: %s" % (absfilename, ex))
         except UnicodeDecodeError as ex:
-            s = str(ex).replace('utf-8', 'utf8')
+            s = ("%s" % ex).replace('utf-8', 'utf8')
             raise self.ReadError("%s: unicode error: %s" % (absfilename, s))
-        finally:
-            if fd is not None:
-                fd.close()
 
         if in_format is None:
             in_format = util.guess_format(text)

@@ -2,8 +2,8 @@
 
 The parser does not check any keywords or grammar.
 """
+from __future__ import unicode_literals
 import collections
-import sys
 from . import error
 from . import util
 from . import statements
@@ -357,13 +357,13 @@ def ppkeywd(tok):
         return tok
 
 def pp(s, indent=0):
-    sys.stdout.write(" " * indent + ppkeywd(s.raw_keyword))
+    util.stdout.write(" " * indent + ppkeywd(s.raw_keyword))
     if s.arg is not None:
-        sys.stdout.write(" '" + s.arg + "'")
+        util.stdout.write(" '" + s.arg + "'")
     if not s.substmts:
-        sys.stdout.write(";\n")
+        util.stdout.write(";\n")
     else:
-        sys.stdout.write(" {\n")
+        util.stdout.write(" {\n")
         for ss in s.substmts:
             pp(ss, indent+4)
-        sys.stdout.write(" " * indent + "}\n")
+        util.stdout.write(" " * indent + "}\n")

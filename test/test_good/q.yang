@@ -6,4 +6,10 @@ module q {
 
   description " ";
 
+  leaf foo {
+    type string;
+    default "Møøse";
+    description "Unicode test: Møøse once bit my sister";
+  }
+
 }

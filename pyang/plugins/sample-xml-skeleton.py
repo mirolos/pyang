@@ -30,8 +30,8 @@ document containing sample elements for all data nodes.
   --sample-xml-skeleton-defaults option).
 """
 
+from __future__ import unicode_literals
 import copy
-import sys
 import optparse
 from lxml import etree
 
@@ -65,8 +65,8 @@ class SampleXMLSkeletonPlugin(plugin.PyangPlugin):
                                  dest="sample_path",
                                  help="Subtree to print"),
         ]
-        g = optparser.add_option_group(
-            "Sample-xml-skeleton output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "Sample-xml-skeleton output specific options"))
         g.add_options(optlist)
 
     def add_output_format(self, fmts):
@@ -119,15 +119,8 @@ class SampleXMLSkeletonPlugin(plugin.PyangPlugin):
         tree = etree.ElementTree(self.top)
         for yam in modules:
             self.process_children(yam, self.top, None, path)
-        if sys.version > "3":
-            fd.write(str(etree.tostring(tree, pretty_print=True,
-                                        encoding="UTF-8",
-                                        xml_declaration=True), "UTF-8"))
-        elif sys.version > "2.7":
-            tree.write(fd, encoding="UTF-8", pretty_print=True,
-                       xml_declaration=True)
-        else:
-            tree.write(fd, pretty_print=True, encoding="UTF-8")
+        tree.write(fd.buffer,
+                   encoding="UTF-8", pretty_print=True, xml_declaration=True)
 
     def ignore(self, node, elem, module, path):
         """Do nothing for `node`."""

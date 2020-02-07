@@ -1,5 +1,6 @@
 """YIN output plugin"""
 
+from __future__ import unicode_literals
 from xml.sax.saxutils import quoteattr
 from xml.sax.saxutils import escape
 
@@ -29,7 +30,8 @@ class YINPlugin(plugin.PyangPlugin):
                                  action="store_true",
                                  help="Pretty print strings"),
             ]
-        g = optparser.add_option_group("YIN output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "YIN output specific options"))
         g.add_options(optlist)
     def add_output_format(self, fmts):
         fmts['yin'] = self

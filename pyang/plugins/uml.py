@@ -2,7 +2,7 @@
 1) download plantuml.sourceforge.net/
 2) Invoke with:
 >pyang -f uml <file.yang> > <file.uml>
->java -jar plantuml.jar <file.uml>
+>java -jar plantuml.jar -charset UTF-8 <file.uml>
 
 3) result in img/module.png
 
@@ -13,10 +13,11 @@ For huge models Java might spit out memory exceptions, increase heap with e.g. -
 # -elements with same name at same level, we assume the path is unique
 # cleanup choice and case with function
 
+from __future__ import unicode_literals
 import optparse
-import sys
 import datetime
 import re
+import io
 
 from pyang import plugin
 from pyang import error
@@ -97,7 +98,8 @@ class UMLPlugin(plugin.PyangPlugin):
         if hasattr(optparser, 'uml_opts'):
             g = optparser.uml_opts
         else:
-            g = optparser.add_option_group("UML specific options")
+            g = optparser.add_option_group(optparse.OptionGroup(
+                optparser, "UML specific options"))
             optparser.uml_opts = g
         g.add_options(optlist)
 
@@ -190,41 +192,47 @@ class uml_emitter:
         self.ctx_inline_augments = ctx.opts.uml_inline_augments
 
         no = ctx.opts.uml_no.split(",")
-        self.ctx_leafrefs = not "leafref" in no
-        self.ctx_uses = not "uses" in no
-        self.ctx_annotations = not "annotation" in no
-        self.ctx_identityrefs = not "identityref" in no
-        self.ctx_identities = not "identity" in no
-        self.ctx_typedefs = not "typedef" in no
-        self.ctx_imports = not "import" in no
-        self.ctx_circles = not "circles" in no
-        self.ctx_stereotypes = not "stereotypes" in no
+        self.ctx_leafrefs = "leafref" not in no
+        self.ctx_uses = "uses" not in no
+        self.ctx_annotations = "annotation" not in no
+        self.ctx_identityrefs = "identityref" not in no
+        self.ctx_identities = "identity" not in no
+        self.ctx_typedefs = "typedef" not in no
+        self.ctx_imports = "import" not in no
+        self.ctx_circles = "circles" not in no
+        self.ctx_stereotypes = "stereotypes" not in no
 
-        nostrings = ("module", "leafref", "uses", "annotation", "identityref", "typedef", "import", "circles", "stereotypes")
+        nostrings = ("module", "leafref", "uses", "annotation", "identityref",
+                     "typedef", "import", "circles", "stereotypes")
         if ctx.opts.uml_no != "":
             for no_opt in no:
                 if no_opt not in nostrings:
-                    sys.stderr.write("\"%s\" no valid argument to --uml-no=...,  valid arguments: %s \n" %(no_opt, nostrings))
+                    util.stderr.write("\"%s\" is invalid argument to "
+                                      "--uml-no=, select from: %s \n"
+                                      % (no_opt, " ".join(nostrings)))
 
         self.ctx_filterfile = ctx.opts.uml_gen_filter_file
 
-        self.ctx_truncate_augments = "augment" in ctx.opts.uml_truncate.split(",")
-        self.ctx_truncate_leafrefs = "leafref" in ctx.opts.uml_truncate.split(",")
+        truncate = ctx.opts.uml_truncate.split(",")
+        self.ctx_truncate_augments = "augment" in truncate
+        self.ctx_truncate_leafrefs = "leafref" in truncate
         self.ctx_no_module = "module" in no
 
         truncatestrings = ("augment", "leafref")
         if ctx.opts.uml_truncate != "":
-            for trunc in ctx.opts.uml_truncate.split(","):
+            for trunc in truncate:
                 if trunc not in truncatestrings:
-                    sys.stderr.write("\"%s\" no valid argument to --uml-truncate=...,  valid arguments: %s \n" %(trunc, truncatestrings))
+                    util.stderr.write("\"%s\" is invalid argument to "
+                                      "--uml-truncate=, select from: %s \n"
+                                      % (trunc, " ".join(truncatestrings)))
 
         if ctx.opts.uml_filter_file is not None:
             try:
-                self.ctx_usefilterfile = open(ctx.opts.uml_filter_file, "r")
-                self.filterpaths = self.ctx_usefilterfile.readlines()
-                self.ctx_usefilterfile.close()
+                with io.open(ctx.opts.uml_filter_file,
+                             "r", encoding='utf-8', newline='\n') as ctx_usefilterfile:
+                    self.filterpaths = [path.strip() for path in ctx_usefilterfile]
             except IOError:
-                raise error.EmitError("Filter file %s does not exist" %ctx.opts.uml_filter_file, 2)
+                raise error.EmitError("Filter file %s cannot be read" % ctx.opts.uml_filter_file, 2)
 
     def emit(self, modules, fd):
         title = ''
@@ -291,10 +299,10 @@ class uml_emitter:
 
             node = statements.find_target_node(self._ctx, stmt, True)
             if node is not None and prefix in self.module_prefixes and not self.ctx_inline_augments:
-                # sys.stderr.write("Found augment target : %s , %s \n" %(stmt.arg, self.full_path(node)))
+                # util.stderr.write("Found augment target : %s , %s \n" %(stmt.arg, self.full_path(node)))
                 self.augments.append(self.full_path(stmt) + '-->' + self.full_path(node) + ' : augments' + '\n')
             else:
-                # sys.stderr.write("Not Found augment target : %s \n" %(stmt.arg))
+                # util.stderr.write("Not Found augment target : %s \n" %(stmt.arg))
                 pass
 
             if self.ctx_inline_augments and node is not None:
@@ -321,7 +329,7 @@ class uml_emitter:
             if not self.ctx_filterfile:
                 fd.write('class \"%s\" as %s <<choice>> \n' % (self.full_display_path(stmt), self.full_path(stmt)))
                 fd.write('%s .. %s : choice \n' % (self.full_path(mod), self.full_path(stmt)))
-            # sys.stderr.write('in choice %s \n', self.full_path(mod))
+            # util.stderr.write('in choice %s \n', self.full_path(mod))
             for children in stmt.substmts:
                 self.emit_child_stmt(stmt, children, fd)
 
@@ -329,7 +337,7 @@ class uml_emitter:
             if not self.ctx_filterfile:
                 fd.write('class \"%s\" as %s \n' %(self.full_display_path(stmt), self.full_path(stmt)))
                 fd.write('%s ..  %s  : choice\n' % (self.full_path(mod), self.full_path(stmt)))
-            # sys.stderr.write('in case %s \n', full_path(mod))
+            # util.stderr.write('in case %s \n', full_path(mod))
             for children in mod.substmts:
                 self.emit_child_stmt(stmt, children, fd)
 
@@ -352,7 +360,7 @@ class uml_emitter:
         # go down one level and search for good UML roots
         # I think we have covered all....
         # else:
-            # sys.stderr.write('skipping top level: %s:%s\n' % (stmt.keyword, stmt.arg))
+            # util.stderr.write('skipping top level: %s:%s\n' % (stmt.keyword, stmt.arg))
             # for s in stmt.substmts:
               # emit_stmt(mod, s, fd)
 
@@ -395,7 +403,7 @@ class uml_emitter:
                     self.emit_child_stmt(node, children, fd)
                     # self.emit_child_stmt(parent, children, fd)
         elif node.keyword == 'case':
-            # sys.stderr.write('in case \n')
+            # util.stderr.write('in case \n')
             if not self.ctx_filterfile:
                 fd.write('class \"%s\" as %s <<case>>\n' %(self.full_display_path(node), self.full_path(node)))
                 fd.write('%s .. %s  : choice %s\n' % (self.full_path(parent), self.full_path(node), node.parent.arg))
@@ -411,7 +419,7 @@ class uml_emitter:
                 grouping_node = node.i_grouping
                 if grouping_node is not None:
                     # inline grouping here
-                    # sys.stderr.write('Found  target grouping to inline %s %s \n' %(grouping_node.keyword, grouping_node.arg))
+                    # util.stderr.write('Found  target grouping to inline %s %s \n' %(grouping_node.keyword, grouping_node.arg))
                     for children in grouping_node.substmts:
                         # make the inlined parent to parent rather then the grouping to make full path unique
                         children.parent = parent
@@ -419,9 +427,7 @@ class uml_emitter:
 
         # moved stuff below here in order to include annotations for classes-only
         elif node.keyword == 'description' and self.ctx_description:
-            # make plain ASCII
-            descrstr = ''.join([x for x in node.arg if ord(x) < 128])
-            self.annotate_node(parent, descrstr, fd)
+            self.annotate_node(parent, node.arg, fd)
         elif node.keyword == 'config':
             self.annotate_node(parent, "<b>Config = </b>" + node.arg, fd)
         elif node.keyword == 'must':
@@ -476,7 +482,8 @@ class uml_emitter:
         fd.write('\'Download plantuml from http://plantuml.sourceforge.net/ \n')
         fd.write('\'Generate png with java -jar plantuml.jar <file> \n')
         fd.write('\'Output in img/<module>.png \n')
-        fd.write('\'If Java spits out memory error increase heap size with java -Xmx1024m  -jar plantuml.jar <file> \n')
+        fd.write('\'If Java spits out memory error increase heap size with \n')
+        fd.write('\'java -Xmx1024m -jar plantuml.jar -charset UTF-8 <file> \n')
 
 
         fd.write('@startuml %s%s.png \n' %(self.ctx_outputdir, title))
@@ -624,7 +631,7 @@ class uml_emitter:
             cardinality = "1"
 
         if not self.ctx_filterfile:
-        # and (not self.ctx_usefilterfile or self.full_path(node) in self.filterpaths):
+        # and (not self.filterpaths or self.full_path(node) in self.filterpaths):
             fd.write('class \"%s\" as  %s <<container>> \n' %(self.full_display_path(node), self.full_path(node)))
             fd.write('%s *-- \"%s\" %s \n' %(self.full_path(parent), cardinality, self.full_path(node)))
         else:
@@ -739,7 +746,7 @@ class uml_emitter:
         # u =  self.make_plantuml_keyword(node.arg)
         u =  self.make_plantuml_keyword(self.grouping_name(node.arg))
         # MEF
-        # sys.stderr.write('Uses : %s %s \n' %(p,u))
+        # util.stderr.write('Uses : %s %s \n' %(p,u))
         self.uses.append([p,u])
         self.uses_as_string[u] = node.arg
 
@@ -750,12 +757,12 @@ class uml_emitter:
             self.groupings[self.make_plantuml_keyword(self.grouping_name(stmt.arg))] = (self.full_path(stmt))
             # when reference from this other modules
             self.groupings[self.make_plantuml_keyword(self.grouping_name(self.thismod_prefix + ':' + stmt.arg))] = (self.full_path(stmt))
-            # sys.stderr.write('Grouping : %s %s \n' %(self.make_plantuml_keyword(self.grouping_name(stmt.arg)),  self.full_path(stmt)))
+            # util.stderr.write('Grouping : %s %s \n' %(self.make_plantuml_keyword(self.grouping_name(stmt.arg)),  self.full_path(stmt)))
             if glob: # indicate grouping visible outside module
                 fd.write('class \"%s\" as %s <<(G,Lime) grouping>> \n' %(self.full_display_path(stmt), self.full_path(stmt)))
             else:
                 fd.write('class \"%s\" as %s <<(G,Red) grouping>> \n' %(self.full_display_path(stmt), self.full_path(stmt)))
-            # sys.stderr.write('emit grouping : %s\n' %(self.full_path(stmt)))
+            # util.stderr.write('emit grouping : %s\n' %(self.full_path(stmt)))
             # Groupings are not really part of the schema tree
             # fd.write('%s --  %s \n' %(self.full_path(module), self.full_path(stmt)))
         else:
@@ -809,7 +816,7 @@ class uml_emitter:
                 s = s + "..."
             s = s + '}'
         elif t.arg == 'leafref':
-            # sys.stderr.write('in leafref \n')
+            # util.stderr.write('in leafref \n')
             s = s + ' : '
             p = t.search_one('path')
             if p is not None:
@@ -847,16 +854,16 @@ class uml_emitter:
                     if prefix not in self.module_prefixes:
                         self.post_strings.append('class \"%s\" as %s <<leafref>> \n' %(leafrefparent, self.full_path(n.parent)))
                         # self.post_strings.append('%s : %s\n' %(self.full_path(n.parent), leafrefkey))
-                        sys.stderr.write("Info: Leafref %s outside diagram. Prefix = %s\n" %(p.arg, prefix))
+                        util.stderr.write("Info: Leafref %s outside diagram. Prefix = %s\n" %(p.arg, prefix))
 
                 else:
-                    sys.stderr.write("Info: Did not find leafref target %s\n" %p.arg)
+                    util.stderr.write("Info: Did not find leafref target %s\n" %p.arg)
                 #if n is not None and (inthismodule):
-                    # sys.stderr.write('leafref %s : target %s \n' %(p.arg, full_path(n)))
-                    # sys.stderr.write('in this module %s : \n' %inthismodule)
+                    # util.stderr.write('leafref %s : target %s \n' %(p.arg, full_path(n)))
+                    # util.stderr.write('in this module %s : \n' %inthismodule)
                     # self.leafrefs.append(self.full_path(node.parent) + '-->' + '"' + leafrefkey + '"' + self.full_path(n.parent) + ': ' + node.arg + '\n')
                 #elif n is not None and not inthismodule:
-                    # sys.stderr.write('in this module %s : \n' %inthismodule)
+                    # util.stderr.write('in this module %s : \n' %inthismodule)
                     # self.leafrefs.append('class \"%s\" as %s <<(L, Red)>>\n' %(leafrefparent, self.full_path(n.parent)))
                     # self.leafrefs.append('%s : %s\n' %(self.full_path(n.parent), leafrefkey))
                     # self.leafrefs.append(self.full_path(node.parent) + '-->' + '"' + leafrefkey + '"' + self.full_path(n.parent) + ': ' + node.arg + '\n')
@@ -1002,7 +1009,7 @@ class uml_emitter:
             inthismod = True
         else:
             inthismod = (prefix == self.thismod_prefix)
-        # sys.stderr.write("prefix for %s : %s \n" %(path, prefix))
+        # util.stderr.write("prefix for %s : %s \n" %(path, prefix))
         module = util.prefix_to_module(
             stmt.i_module, prefix, stmt.pos, self._ctx.errors)
         if module is None:
@@ -1067,7 +1074,7 @@ class uml_emitter:
                     # Grouping in other module, use red...
                     # fd.write('class \"%s\" as %s << (G,Red) grouping>>\n' %(self.uses_as_string[u], self.make_plantuml_keyword(self.uses_as_string[u])))
                     # fd.write('%s --> %s : uses \n' %(p, self.make_plantuml_keyword(self.uses_as_string[u])))
-                    sys.stderr.write("Info: Skipping uses reference to %s, grouping not in input files \n" %p)
+                    util.stderr.write("Info: Skipping uses reference to %s, grouping not in input files \n" %p)
                     pass
 
         if self.ctx_leafrefs: # TODO correct paths for external leafrefs

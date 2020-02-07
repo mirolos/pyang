@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
+from __future__ import unicode_literals
 import sys
-import os
+import os.path
 import optparse
 import io
-import codecs
 
 import pyang
 from pyang import plugin
@@ -177,7 +177,7 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
     (o, args) = optparser.parse_args()
 
     if o.outfile is not None and o.format is None:
-        sys.stderr.write("no format specified\n")
+        util.stderr.write("no format specified\n")
         sys.exit(1)
 
     filenames = args
@@ -185,19 +185,17 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
     # Parse hello if present
     if o.hello:
         if len(filenames) > 1:
-            sys.stderr.write("multiple hello files given\n")
+            util.stderr.write("multiple hello files given\n")
             sys.exit(1)
-        if filenames:
-            try:
-                fd = open(filenames[0], "rb")
-            except IOError as ex:
-                sys.stderr.write("error %s: %s\n" % (filenames[0], ex))
-                sys.exit(1)
-        elif sys.version < "3":
-            fd = sys.stdin
-        else:
-            fd = sys.stdin.buffer
-        hel = hello.HelloParser().parse(fd)
+        try:
+            opened = filenames[0] if filenames else sys.stdin.fileno()
+            with io.open(opened, "rb") as fd:
+                hel = hello.HelloParser().parse(fd)
+        except IOError as ex:
+            util.stderr.write("error %s: %s\n" % (opened, ex))
+            sys.exit(1)
+    else:
+        hel = None
 
     path = os.pathsep.join(o.path)
 
@@ -237,13 +235,12 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
         for tag in error.error_codes:
             (level, fmt) = error.error_codes[tag]
             if error.is_warning(level):
-                print("Warning: %s" % tag)
+                util.stdout.write("Warning: %s\n" % tag)
             elif error.allow_warning(level):
-                print("Minor Error:   %s" % tag)
+                util.stdout.write("Minor Error:   %s\n" % tag)
             else:
-                print("Error:   %s" % tag)
-            print("Message: %s" % fmt)
-            print("")
+                util.stdout.write("Error:   %s\n" % tag)
+            util.stdout.write("Message: %s\n\n" % fmt)
         sys.exit(0)
 
     # patch the error spec so that -W errors are treated as warnings
@@ -256,7 +253,7 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
     xform_objs = []
     for transform in o.transforms:
         if transform not in xforms:
-            sys.stderr.write("unsupported transform '%s'\n" % transform)
+            util.stderr.write("unsupported transform '%s'\n" % transform)
         else:
             xform_obj = xforms[transform]
             xform_obj.setup_xform(ctx)
@@ -266,7 +263,7 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
 
     if o.format is not None:
         if o.format not in fmts:
-            sys.stderr.write("unsupported format '%s'\n" % o.format)
+            util.stderr.write("unsupported format '%s'\n" % o.format)
             sys.exit(1)
         emit_obj = fmts[o.format]
         if o.keep_comments and emit_obj.handle_comments:
@@ -293,13 +290,13 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
                 emarg = mn
                 if rev:
                     emarg += "@" + rev
-                sys.stderr.write(
+                util.stderr.write(
                     "module '%s' specified in hello not found.\n" % emarg)
                 sys.exit(1)
             modules.append(mod)
     else:
         if len(filenames) == 0:
-            text = sys.stdin.read()
+            text = util.stdin.read()
             module = ctx.add_module('<stdin>', text)
             if module is None:
                 exit_code = 1
@@ -308,22 +305,23 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
         if (len(filenames) > 1 and
             emit_obj is not None and
             not emit_obj.multiple_modules):
-            sys.stderr.write("too many files to convert\n")
+            util.stderr.write("too many files to convert\n")
             sys.exit(1)
 
         for filename in filenames:
             try:
-                fd = io.open(filename, "r", encoding="utf-8")
-                text = fd.read()
+                with io.open(filename, "r", encoding="utf-8", newline='') as fd:
+                    text = fd.read()
                 if o.verbose:
                     util.report_file_read(filename, "(CL)")
             except IOError as ex:
-                sys.stderr.write("error %s: %s\n" % (filename, ex))
+                util.stderr.write("error %s: %s\n" % (filename, ex))
                 sys.exit(1)
             except UnicodeDecodeError as ex:
-                s = str(ex).replace('utf-8', 'utf8')
-                sys.stderr.write("%s: unicode error: %s\n" % (filename, s))
+                s = ("%s" % ex).replace('utf-8', 'utf8')
+                util.stderr.write("%s: unicode error: %s\n" % (filename, s))
                 sys.exit(1)
+
             m = syntax.re_filename.search(filename)
             ctx.yin_module_map = {}
             if m is not None:
@@ -347,15 +345,16 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
     # apply deviations
     for filename in ctx.opts.deviations:
         try:
-            fd = io.open(filename, "r", encoding="utf-8")
-            text = fd.read()
+            with io.open(filename, "r", encoding="utf-8") as fd:
+                text = fd.read()
         except IOError as ex:
-            sys.stderr.write("error %s: %s\n" % (filename, ex))
+            util.stderr.write("error %s: %s\n" % (filename, ex))
             sys.exit(1)
         except UnicodeDecodeError as ex:
-            s = str(ex).replace('utf-8', 'utf8')
-            sys.stderr.write("%s: unicode error: %s\n" % (filename, s))
+            s = ("%s" % ex).replace('utf-8', 'utf8')
+            util.stderr.write("%s: unicode error: %s\n" % (filename, s))
             sys.exit(1)
+
         m = ctx.add_module(filename, text)
         if m is not None:
             ctx.deviation_modules.append(m)
@@ -382,7 +381,7 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
                         statements.validate_module(ctx, module)
             except error.TransformError as e:
                 if e.msg != "":
-                    sys.stderr.write(e.msg + '\n')
+                    util.stderr.write(e.msg + '\n')
                 sys.exit(e.exit_code)
 
     # verify the given features
@@ -390,8 +389,8 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
         if m.arg in ctx.features:
             for f in ctx.features[m.arg]:
                 if f not in m.i_features:
-                    sys.stderr.write("unknown feature %s in module %s\n" %
-                                     (f, m.arg))
+                    util.stderr.write("unknown feature %s in module %s\n" %
+                                      (f, m.arg))
                     sys.exit(1)
 
     if len(xform_and_emit_objs) > 0 and len(modules) > 0:
@@ -438,39 +437,32 @@ Validates the YANG module in <filename> (or stdin), and all its dependencies."""
             kind = "error"
             exit_code = 1
         emsg = etag if o.print_error_code else error.err_to_str(etag, eargs)
-        sys.stderr.write('%s: %s: %s\n' % (epos, kind, emsg))
+        util.stderr.write('%s: %s: %s\n' % (epos, kind, emsg))
 
-    if emit_obj is not None and len(modules) > 0:
-        tmpfile = None
-        if o.outfile is None:
-            if sys.version < '3':
-                fd = codecs.getwriter('utf8')(sys.stdout)
-            else:
-                fd = sys.stdout
-        else:
-            tmpfile = o.outfile + ".tmp"
-            if sys.version < '3':
-                fd = codecs.open(tmpfile, "w+", encoding="utf-8")
-            else:
-                fd = io.open(tmpfile, "w+", encoding="utf-8")
+    if emit_obj is not None and modules:
         try:
-            emit_obj.emit(ctx, modules, fd)
+            if o.outfile is None:
+                tmpfile = None
+                fd = util.stdout
+            else:
+                tmpfile = o.outfile + ".tmp"
+                fd = io.open(tmpfile, "w+", encoding="utf-8")
+            with fd:
+                emit_obj.emit(ctx, modules, fd)
+            if tmpfile is not None:
+                os.rename(tmpfile, o.outfile)
         except error.EmitError as e:
-            if e.msg != "":
-                sys.stderr.write(e.msg + '\n')
-            if tmpfile is not None:
-                fd.close()
+            if e.msg:
+                util.stderr.write('%s\n' % e.msg)
+            if os.path.isfile(tmpfile):
                 os.remove(tmpfile)
-            sys.exit(e.exit_code)
-        except:
+            exit_code = e.exit_code
+        except Exception as e:
+            util.stderr.write('Failed to emit: %s\n' % e)
             if tmpfile is not None:
-                fd.close()
                 os.remove(tmpfile)
             raise
-        if tmpfile is not None:
-            fd.close()
-            os.rename(tmpfile, o.outfile)
-
+            exit_code = 1
     sys.exit(exit_code)
 
 def parse_features_string(s):

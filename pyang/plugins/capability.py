@@ -2,6 +2,7 @@
 
 """
 
+from __future__ import unicode_literals
 import optparse
 
 from pyang import plugin
@@ -22,7 +23,8 @@ class CapabilityPlugin(plugin.PyangPlugin):
                                  default=False,
                                  help="Write ampersands as XML entity")
             ]
-        g = optparser.add_option_group("Capability output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "Capability output specific options"))
         g.add_options(optlist)
     def emit(self, ctx, modules, fd):
         for m in modules:

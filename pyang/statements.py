@@ -2884,9 +2884,12 @@ class Statement(object):
     def pprint(self, indent='', f=None):
         """debug function"""
         if self.arg is not None:
-            print(indent + util.keyword_to_str(self.keyword) + " " + self.arg)
+            util.stdout.write(
+                "%s%s %s\n"
+                % (indent, util.keyword_to_str(self.keyword), self.arg))
         else:
-            print(indent + util.keyword_to_str(self.keyword))
+            util.stdout.write(
+                "%s%s\n" % (indent, util.keyword_to_str(self.keyword)))
         if f is not None:
             f(self, indent)
         for x in self.substmts:
@@ -2897,10 +2900,10 @@ class Statement(object):
             pass
         else:
             if children:
-                print(indent + '--- BEGIN i_children ---')
+                util.stdout.write(indent + '--- BEGIN i_children ---\n')
                 for child in children:
                     child.pprint(indent + ' ', f)
-                print(indent + '--- END i_children ---')
+                util.stdout.write(indent + '--- END i_children ---\n')
 
 class ModSubmodStatement(Statement):
     __slots__ = (
@@ -3106,14 +3109,15 @@ STMT_CLASS_FOR_KEYWD = {
 
 def print_tree(stmt, substmts=True, i_children=True, indent=0):
     istr = "  "
-    print("%s%s %s      %s %s" % (indent * istr, stmt.keyword,
-                                  stmt.arg, stmt, stmt.parent))
+    util.stdout.write(
+        "%s%s %s      %s %s\n"
+        % (indent * istr, stmt.keyword, stmt.arg, stmt, stmt.parent))
     if substmts and stmt.substmts:
-        print("%s  substatements:" % (indent * istr))
+        util.stdout.write("%s  substatements:\n" % (indent * istr))
         for s in stmt.substmts:
             print_tree(s, substmts, i_children, indent+1)
     if i_children and hasattr(stmt, 'i_children'):
-        print("%s  i_children:" % (indent * istr))
+        util.stdout.write("%s  i_children:\n" % (indent * istr))
         for s in stmt.i_children:
             print_tree(s, substmts, i_children, indent+1)
 

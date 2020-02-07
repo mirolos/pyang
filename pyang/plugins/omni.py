@@ -1,4 +1,5 @@
 
+from __future__ import unicode_literals
 import optparse
 
 from pyang import plugin
@@ -32,7 +33,8 @@ class OmniPlugin(plugin.PyangPlugin):
                                  dest="omni_tree_path",
                                  help="Subtree to print"),
             ]
-        g = optparser.add_option_group("OmniGraffle output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "OmniGraffle output specific options"))
         g.add_options(optlist)
 
     def setup_fmt(self, ctx):

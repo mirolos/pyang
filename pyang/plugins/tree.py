@@ -5,6 +5,7 @@ Compatible with RFC 8340.
 Idea copied from libsmi.
 """
 
+from __future__ import unicode_literals
 import optparse
 import sys
 import re
@@ -63,7 +64,8 @@ class TreePlugin(plugin.PyangPlugin):
                                      help="Print ietf-restconf:yang-data " +
                                      "structures")
             )
-        g = optparser.add_option_group("Tree output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "Tree output specific options"))
         g.add_options(optlist)
 
     def setup_ctx(self, ctx):
@@ -85,7 +87,7 @@ class TreePlugin(plugin.PyangPlugin):
                   ctx.opts.tree_line_length, path)
 
 def print_help():
-    print("""
+    util.stdout.write("""
 Each node is printed as:
 
 <status>--<flags> <name><opts> <type> <if-features>

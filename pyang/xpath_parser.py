@@ -6,6 +6,7 @@ References are to rules in:
 http://www.w3.org/TR/1999/REC-xpath-19991116
 """
 
+from . import util
 from . import yacc
 from . import xpath_lexer
 
@@ -16,10 +17,10 @@ def pparse(s):
     try:
         return parse(s)
     except xpath_lexer.XPathError as e:
-        print('ERROR: %s:%s: %s' % (e.line, e.pos, e.msg))
+        util.stderr.write('ERROR: %s:%s: %s\n' % (e.line, e.pos, e.msg))
         return None
     except SyntaxError as e:
-        print('ERROR: %s' % e.msg)
+        util.stderr.write('ERROR: %s\n' % e)
         return None
 
 ### Parser follows

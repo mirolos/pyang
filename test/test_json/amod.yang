@@ -8,6 +8,8 @@ module amod {
 
   include asub;
 
+  description "Unicode test: Møøse once bit my sister";
+
   feature abc;
 
   identity bogus;

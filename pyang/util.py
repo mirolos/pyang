@@ -1,3 +1,5 @@
+import io
+import json
 import os.path
 import sys
 from numbers import Integral as int_types
@@ -5,6 +7,13 @@ from numbers import Integral as int_types
 from .error import err_add
 
 str_types = str if isinstance(u'', str) else (str, type(u''))
+
+stdin = io.open(sys.stdin.fileno(),
+                'r', encoding='utf-8', closefd=False, newline='\n')
+stdout = io.open(sys.stdout.fileno(),
+                 'w', encoding='utf-8', closefd=False, newline='')
+stderr = io.open(sys.stderr.fileno(),
+                 'w', encoding='utf-8', closefd=False, newline='')
 
 
 def attrsearch(tag, attr, in_list):
@@ -142,7 +151,7 @@ def report_file_read(filename, extra=None):
     realpath = os.path.realpath(filename)
     read = "READ" if realpath in files_read else "read"
     extra = (" " + extra) if extra else ""
-    sys.stderr.write("# %s %s%s\n" % (read, filename, extra))
+    stderr.write("# %s %s%s\n" % (read, filename, extra))
     files_read[realpath] = True
 
 
@@ -176,3 +185,9 @@ def data_node_up(node):
     if p and p.keyword in skip:
         return closest_ancestor_data_node(p)
     return p
+
+def json_dump(data, fd=stdout, indent=None):
+    string = json.dumps(data, indent=indent)
+    if isinstance(string, bytes):
+        fd = fd.buffer
+    fd.write(string)

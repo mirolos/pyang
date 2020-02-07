@@ -2,6 +2,7 @@
 
 """
 
+from __future__ import unicode_literals
 import optparse
 import os.path
 
@@ -47,7 +48,8 @@ class DependPlugin(plugin.PyangPlugin):
                                      " prerequisites.  This option can be" \
                                      " given multiple times."),
             ]
-        g = optparser.add_option_group("Depend output specific options")
+        g = optparser.add_option_group(optparse.OptionGroup(
+            optparser, "Depend output specific options"))
         g.add_options(optlist)
     def add_output_format(self, fmts):
         self.multiple_modules = True

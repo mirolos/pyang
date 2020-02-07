@@ -21,10 +21,9 @@ that can be used by the *json2xml* script for translating a valid JSON
 configuration or state data to XML.
 """
 
-import json
+from __future__ import unicode_literals
 
-from pyang import plugin, error
-from pyang.util import unique_prefixes
+from pyang import plugin, error, util
 
 def pyang_plugin_init():
     plugin.register_plugin(JtoXPlugin())
@@ -46,7 +45,7 @@ class JtoXPlugin(plugin.PyangPlugin):
         tree = {}
         mods = {}
         annots = {}
-        for m,p in unique_prefixes(ctx).items():
+        for m, p in util.unique_prefixes(ctx).items():
             mods[m.i_modulename] = [p, m.search_one("namespace").arg]
         for module in modules:
             for ann in module.search(("ietf-yang-metadata", "annotation")):
@@ -55,7 +54,8 @@ class JtoXPlugin(plugin.PyangPlugin):
                     "string" if typ is None else self.base_type(typ))
         for module in modules:
             self.process_children(module, tree, None)
-        json.dump({"modules": mods, "tree": tree, "annotations": annots}, fd)
+        output = {"modules": mods, "tree": tree, "annotations": annots}
+        util.json_dump(output, fd)
 
     def process_children(self, node, parent, pmod):
         """Process all children of `node`, except "rpc" and "notification".
